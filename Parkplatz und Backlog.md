@@ -15,11 +15,8 @@ Per `GetCapabilities` verifiziert: das RV-Layer liefert 120 Minuten Vorhersage (
 - **Wann wieder relevant:** Falls auf mehreren Geräten/Standorten genutzt oder Ort sich oft ändert.
 - **Implementierungs-Skizze:** Leaflet-Suchfeld (z.B. Nominatim-Geocoding) + `localStorage` für zuletzt gewählten Ort.
 
-## Hosting-Alternative Cloudflare Pages
-- **Was:** Deployment aktuell auf GitHub Pages ausgelegt (siehe Chat-Anleitung).
-- **Warum zurückgestellt:** GitHub Pages war Default-Vorschlag, nicht explizit vom User bestätigt.
-- **Wann wieder relevant:** Falls kein GitHub-Repo gewünscht ist oder eigene Domain gebraucht wird.
-- **Implementierungs-Skizze:** Gleicher Static-Files-Ordner, einfach bei Cloudflare Pages "Direct Upload" statt Git-Push.
+## ~~Hosting-Alternative Cloudflare Pages~~ — in Arbeit
+Grund für den Umzug war am Ende nicht Domain/Repo-Präferenz, sondern ein konkreter Bug: GitHub Pages' CDN (Fastly) cached `data/radar/manifest.json` fix mit `max-age=600`, unabhängig vom 10-Minuten-Cron-Takt — bis zu 10 Min zusätzliche Verzögerung, clientseitig nicht umgehbar (siehe README, Abschnitt Deployment). Cloudflare Pages per `_headers`-Datei (`Cache-Control: no-store` nur für die Manifest-Dateien) löst das. Cloudflare-Account ist angelegt und mit GitHub verbunden; `_headers`-Datei liegt im Repo bereit. Offen: Cloudflare-Pages-Projekt im Dashboard anlegen (Repo verbinden), neue `*.pages.dev`-URL in README eintragen, PWA auf dem iPhone neu speichern.
 
 ## ~~Service-Worker-Verhalten auf echtem Gerät~~ — erledigt
 Auf dem echten GitHub-Pages-Host (HTTPS) registriert sich der Service Worker sauber, keine Fehler in der Konsole. Der frühere Fehlschlag war nur eine Einschränkung des internen Test-Tools.

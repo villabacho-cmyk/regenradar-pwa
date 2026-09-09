@@ -1,0 +1,5 @@
+/data/radar/manifest.json
+  Cache-Control: no-store
+
+/data/temperature/manifest.json
+  Cache-Control: no-store

@@ -39,7 +39,9 @@ Der `schedule:`-Trigger in den Workflow-Dateien bleibt als Fallback bestehen, fa
 
 ## Deployment
 
-GitHub Pages, deployed vom `main`-Branch. Kein Build-Schritt — reine statische Dateien.
+Cloudflare Pages, deployed automatisch bei jedem Push auf `main` (Cloudflare beobachtet das GitHub-Repo direkt). Kein Build-Schritt — reine statische Dateien.
+
+**Warum nicht mehr GitHub Pages:** Dessen CDN (Fastly) cached `data/radar/manifest.json` fix mit `Cache-Control: max-age=600` — unabhängig vom 10-Minuten-Cron-Takt, dadurch bis zu 10 Min zusätzliche, nicht vorhersehbare Verzögerung obendrauf. Lässt sich clientseitig nicht zuverlässig umgehen (empirisch getestet: Query-String-Cache-Busting und ein `Cache-Control: no-cache`-Request-Header werden beide vom Fastly-Edge ignoriert). Cloudflare Pages unterstützt dagegen eine [`_headers`](_headers)-Datei, die `Cache-Control: no-store` gezielt für die beiden Manifest-Dateien (Radar + Temperatur) setzt. Die Radar-Frame-PNGs bleiben normal gecacht — jeder Frame hat ohnehin einen eigenen, zeitstempel-basierten Dateinamen und ist damit inhaltlich stabil, Caching dort ist unproblematisch.
 
 ## Lokale Entwicklung
 
