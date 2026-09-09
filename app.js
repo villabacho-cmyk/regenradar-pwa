@@ -39,6 +39,11 @@ const statusEl = document.getElementById("status");
 const timestampEl = document.getElementById("timestamp");
 const sliderEl = document.getElementById("slider");
 const playBtn = document.getElementById("playBtn");
+const forecastToggle = document.getElementById("forecastToggle");
+const forecastSheet = document.getElementById("forecastSheet");
+const forecastClose = document.getElementById("forecastClose");
+const forecastStrip = document.getElementById("forecastStrip");
+const forecastLocationName = document.getElementById("forecastLocationName");
 
 function showStatus(text) {
   statusEl.textContent = text;
@@ -318,12 +323,17 @@ function updateTemperatureLabelsForTime(timeMs) {
   }
 }
 
+let allStations = [];
+let userLatLng = null;
+
 async function refreshTemperature() {
   try {
     const res = await fetch(TEMPERATURE_MANIFEST_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const manifest = await res.json();
+    allStations = manifest.stations;
     renderTemperatureLabels(manifest.stations);
+    if (forecastSheet.classList.contains("open")) renderForecastStrip();
   } catch (e) {
     // Stumm scheitern - Temperatur-Zahlen sind ein Zusatz, kein Blocker
     // fuer den Regenradar-Grund-Use-Case.
@@ -333,10 +343,65 @@ async function refreshTemperature() {
 refreshTemperature();
 setInterval(refreshTemperature, TEMPERATURE_POLL_MS);
 
+// 48h-Vorhersage fuer den eigenen Standort: naechstgelegene Station zu
+// userLatLng, keine eigene Geocoding-Loesung noetig - die 41 Stationen
+// sind eh schon flaechig verteilt (siehe scripts/fetch_temperature.py).
+function nearestStation(latlng, stations) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const station of stations) {
+    const dLat = station.lat - latlng[0];
+    const dLon = station.lon - latlng[1];
+    const dist = dLat * dLat + dLon * dLon;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = station;
+    }
+  }
+  return best;
+}
+
+function renderForecastStrip() {
+  if (!userLatLng || allStations.length === 0) {
+    forecastStrip.innerHTML = `<div class="forecast-empty">Standort/Daten noch nicht verfügbar</div>`;
+    return;
+  }
+  const station = nearestStation(userLatLng, allStations);
+  forecastLocationName.textContent = `Vorhersage · ${station.name}`;
+
+  const cutoff = Date.now() - 30 * 60 * 1000; // kleiner Puffer, damit die laufende Stunde nicht rausfaellt
+  const upcoming = station.series.filter(
+    (entry) => entry.tempC != null && new Date(entry.time).getTime() >= cutoff
+  );
+  forecastStrip.innerHTML = upcoming
+    .map(
+      (entry) => `
+      <div class="forecast-hour">
+        <span class="fh-time">${formatLocal(new Date(entry.time))}</span>
+        <span class="fh-icon">${cloudIcon(entry.cloudPct)}</span>
+        <span class="fh-temp">${Math.round(entry.tempC)}°</span>
+        <span class="fh-rain">${entry.rainPct != null ? entry.rainPct + "%" : "–"}</span>
+      </div>`
+    )
+    .join("");
+}
+
+forecastToggle.addEventListener("click", () => {
+  const isOpen = forecastSheet.classList.toggle("open");
+  forecastToggle.setAttribute("aria-expanded", String(isOpen));
+  if (isOpen) renderForecastStrip();
+});
+
+forecastClose.addEventListener("click", () => {
+  forecastSheet.classList.remove("open");
+  forecastToggle.setAttribute("aria-expanded", "false");
+});
+
 if ("geolocation" in navigator) {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const latlng = [pos.coords.latitude, pos.coords.longitude];
+      userLatLng = latlng;
       map.setView(latlng, DEFAULT_ZOOM);
       // Kreis statt Leaflet-Standardmarker: kein Icon-Asset noetig (der
       // Standard-Marker bricht oft, wenn Leaflet nur per CDN-Script

@@ -26,6 +26,16 @@
     <div id="status"></div>
   </div>
 
+  <button id="forecastToggle" class="forecast-toggle" aria-label="48-Stunden-Vorhersage" aria-expanded="false">48h</button>
+
+  <div id="forecastSheet" class="forecast-sheet">
+    <div class="forecast-sheet-header">
+      <span id="forecastLocationName">Vorhersage</span>
+      <button id="forecastClose" class="forecast-close" aria-label="Schließen">✕</button>
+    </div>
+    <div id="forecastStrip" class="forecast-strip"></div>
+  </div>
+
   <footer>
     <button id="playBtn" class="icon-btn" aria-label="Play/Pause">▶</button>
     <input id="slider" type="range" min="0" max="0" value="0" step="1" />

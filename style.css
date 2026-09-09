@@ -134,6 +134,113 @@ button.icon-btn:disabled {
     0 0 4px rgba(0, 0, 0, 0.8);
 }
 
+.forecast-toggle {
+  position: fixed;
+  right: 16px;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  z-index: 900;
+  border: none;
+  background: var(--accent);
+  color: #0a1220;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.forecast-toggle:active {
+  opacity: 0.7;
+}
+
+.forecast-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
+  /* max-height statt transform: translateY zum Ein-/Ausblenden - eine
+     Prozent-Transform relativ zur eigenen (variablen) Inhaltshoehe hat
+     das Sheet im geschlossenen Zustand nicht zuverlaessig aus dem
+     sichtbaren Bereich geschoben. */
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+  z-index: 950;
+}
+
+.forecast-sheet.open {
+  max-height: 42vh;
+}
+
+.forecast-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+
+.forecast-close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  padding: 4px 6px;
+}
+
+.forecast-strip {
+  display: flex;
+  overflow-x: auto;
+  gap: 6px;
+  padding: 14px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
+}
+
+.forecast-hour {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 50px;
+}
+
+.forecast-hour .fh-time {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-hour .fh-icon {
+  font-size: 20px;
+}
+
+.forecast-hour .fh-temp {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-hour .fh-rain {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.forecast-empty {
+  padding: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .leaflet-control-attribution {
   background: rgba(15, 20, 32, 0.7) !important;
   color: var(--muted) !important;
