@@ -240,7 +240,18 @@ setInterval(refreshFrames, MANIFEST_POLL_MS);
 if ("geolocation" in navigator) {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      map.setView([pos.coords.latitude, pos.coords.longitude], DEFAULT_ZOOM);
+      const latlng = [pos.coords.latitude, pos.coords.longitude];
+      map.setView(latlng, DEFAULT_ZOOM);
+      // Kreis statt Leaflet-Standardmarker: kein Icon-Asset noetig (der
+      // Standard-Marker bricht oft, wenn Leaflet nur per CDN-Script
+      // eingebunden ist, ohne die zugehoerigen Bild-Pfade).
+      L.circleMarker(latlng, {
+        radius: 7,
+        color: "#fff",
+        weight: 2,
+        fillColor: "#5ac8ff", // = --accent aus style.css
+        fillOpacity: 1,
+      }).addTo(map);
     },
     () => {
       flashStatus("Standort nicht verfügbar – zeige Berlin", 3000);
