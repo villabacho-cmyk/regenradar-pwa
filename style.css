@@ -109,12 +109,24 @@ button.icon-btn:disabled {
 }
 
 .temp-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.temp-label .cloud-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.temp-label .temp-num {
   color: #ff9500;
   font-size: 18px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: none;
+  line-height: 1;
   -webkit-text-stroke: 1px #000;
   text-stroke: 1px #000;
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,

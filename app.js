@@ -243,10 +243,11 @@ sliderEl.addEventListener("input", () => {
 refreshFrames();
 setInterval(refreshFrames, MANIFEST_POLL_MS);
 
-// Temperatur-Zahlen fuer ein paar grosse Staedte, gleichzeitig mit dem
-// Regenradar sichtbar. Fixe Staedteliste statt dynamischer Standort-
-// Erkennung (siehe scripts/fetch_temperature.py) - reicht fuer den
-// deutschlandweiten Kartenausschnitt.
+// Temperatur-Zahlen + Wolken/Sonne-Icon fuer eine Reihe deutscher
+// Stationen, gleichzeitig mit dem Regenradar sichtbar. Fixe Stationsliste
+// statt dynamischer Standort-Erkennung (siehe scripts/fetch_temperature.py)
+// - reicht fuer den deutschlandweiten Kartenausschnitt. 12 grosse Staedte
+// als Anker, dazu weitere Stationen fuer eine flaechigere Verteilung.
 let temperatureMarkers = [];
 
 // Waehlt aus der stuendlichen Vorhersage-Reihe den Wert, der der
@@ -267,20 +268,27 @@ function closestSeriesEntry(series) {
   return best;
 }
 
-function renderTemperatureLabels(cities) {
+function cloudIcon(cloudPct) {
+  if (cloudPct == null) return "";
+  if (cloudPct < 25) return "☀️";
+  if (cloudPct < 75) return "⛅";
+  return "☁️";
+}
+
+function renderTemperatureLabels(stations) {
   temperatureMarkers.forEach((m) => map.removeLayer(m));
   temperatureMarkers = [];
 
-  for (const city of cities) {
-    const entry = closestSeriesEntry(city.series);
+  for (const station of stations) {
+    const entry = closestSeriesEntry(station.series);
     if (!entry) continue;
     const icon = L.divIcon({
       className: "temp-label",
-      html: `${Math.round(entry.tempC)}`,
+      html: `<span class="cloud-icon">${cloudIcon(entry.cloudPct)}</span><span class="temp-num">${Math.round(entry.tempC)}</span>`,
       iconSize: [0, 0],
-      iconAnchor: [-8, -8], // Zahl etwas versetzt neben dem Stadtpunkt
+      iconAnchor: [-8, -8], // Label etwas versetzt neben dem Stationspunkt
     });
-    const marker = L.marker([city.lat, city.lon], { icon, interactive: false }).addTo(map);
+    const marker = L.marker([station.lat, station.lon], { icon, interactive: false }).addTo(map);
     temperatureMarkers.push(marker);
   }
 }
@@ -290,7 +298,7 @@ async function refreshTemperature() {
     const res = await fetch(TEMPERATURE_MANIFEST_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const manifest = await res.json();
-    renderTemperatureLabels(manifest.cities);
+    renderTemperatureLabels(manifest.stations);
   } catch (e) {
     // Stumm scheitern - Temperatur-Zahlen sind ein Zusatz, kein Blocker
     // fuer den Regenradar-Grund-Use-Case.
