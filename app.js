@@ -150,6 +150,7 @@ async function renderFrame(index) {
   sliderEl.value = String(index);
   timestampEl.textContent =
     formatLocal(new Date(frame.time)) + " Uhr" + (frame.isForecast ? " · Prognose" : "");
+  updateTemperatureLabelsForTime(new Date(frame.time).getTime());
 
   if (!standbyOverlay) return;
   await setOverlayImage(standbyOverlay, frameUrl(frame));
@@ -248,18 +249,19 @@ setInterval(refreshFrames, MANIFEST_POLL_MS);
 // statt dynamischer Standort-Erkennung (siehe scripts/fetch_temperature.py)
 // - reicht fuer den deutschlandweiten Kartenausschnitt. 12 grosse Staedte
 // als Anker, dazu weitere Stationen fuer eine flaechigere Verteilung.
-let temperatureMarkers = [];
+let temperatureMarkers = []; // {marker, station}
 
 // Waehlt aus der stuendlichen Vorhersage-Reihe den Wert, der der
-// tatsaechlichen aktuellen Uhrzeit am naechsten liegt - so zeigt die Zahl
-// immer den passenden Stundenwert, auch zwischen den 6h-Datenupdates.
-function closestSeriesEntry(series) {
-  const now = Date.now();
+// uebergebenen Zeit am naechsten liegt. timeMs kommt vom aktuell
+// angezeigten Regenradar-Frame - so zeigen Temperatur/Wolken-Icon immer
+// den zur Slider-Position passenden Stundenwert, nicht die echte
+// aktuelle Uhrzeit.
+function closestSeriesEntry(series, timeMs) {
   let best = null;
   let bestDiff = Infinity;
   for (const entry of series) {
     if (entry.tempC == null) continue;
-    const diff = Math.abs(new Date(entry.time).getTime() - now);
+    const diff = Math.abs(new Date(entry.time).getTime() - timeMs);
     if (diff < bestDiff) {
       bestDiff = diff;
       best = entry;
@@ -275,21 +277,44 @@ function cloudIcon(cloudPct) {
   return "☁️";
 }
 
+function temperatureLabelHtml(entry) {
+  if (!entry) return "";
+  return `<span class="cloud-icon">${cloudIcon(entry.cloudPct)}</span><span class="temp-num">${Math.round(entry.tempC)}</span>`;
+}
+
+// Aktuell angezeigte Zeit des Regenradars (bzw. "jetzt", solange noch
+// keine Frames geladen sind) - das ist die gemeinsame Zeitbasis fuer die
+// Temperatur/Wolken-Labels.
+function currentRadarTimeMs() {
+  const frame = frames[currentIndex];
+  return frame ? new Date(frame.time).getTime() : Date.now();
+}
+
 function renderTemperatureLabels(stations) {
-  temperatureMarkers.forEach((m) => map.removeLayer(m));
+  temperatureMarkers.forEach(({ marker }) => map.removeLayer(marker));
   temperatureMarkers = [];
 
   for (const station of stations) {
-    const entry = closestSeriesEntry(station.series);
-    if (!entry) continue;
     const icon = L.divIcon({
       className: "temp-label",
-      html: `<span class="cloud-icon">${cloudIcon(entry.cloudPct)}</span><span class="temp-num">${Math.round(entry.tempC)}</span>`,
+      html: "",
       iconSize: [0, 0],
       iconAnchor: [-8, -8], // Label etwas versetzt neben dem Stationspunkt
     });
     const marker = L.marker([station.lat, station.lon], { icon, interactive: false }).addTo(map);
-    temperatureMarkers.push(marker);
+    temperatureMarkers.push({ marker, station });
+  }
+  updateTemperatureLabelsForTime(currentRadarTimeMs());
+}
+
+// Aktualisiert nur den Inhalt der bestehenden Marker (kein Entfernen/
+// Neuanlegen) - wird bei jedem Radar-Frame-Wechsel aufgerufen, auch
+// waehrend der Wiedergabe alle 450ms, muss also billig sein.
+function updateTemperatureLabelsForTime(timeMs) {
+  for (const { marker, station } of temperatureMarkers) {
+    const entry = closestSeriesEntry(station.series, timeMs);
+    const el = marker.getElement();
+    if (el) el.innerHTML = temperatureLabelHtml(entry);
   }
 }
 

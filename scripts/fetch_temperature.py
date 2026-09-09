@@ -114,6 +114,7 @@ def parse_series(kml_bytes):
     ttt_raw = values_for("TTT")
     rsund_raw = values_for("RSunD")  # Tageswert (nur alle 24h ein Wert)
     n_raw = values_for("N")  # Gesamtbedeckungsgrad in %, stuendlich
+    r101_raw = values_for("R101")  # Niederschlagswahrscheinlichkeit >0.1mm/1h in %, stuendlich
 
     series = []
     for i, time_iso in enumerate(timesteps[:SERIES_HOURS]):
@@ -126,7 +127,18 @@ def parse_series(kml_bytes):
         cloud_pct = None
         if n_raw and i < len(n_raw) and n_raw[i] != "-":
             cloud_pct = round(float(n_raw[i]))
-        series.append({"time": time_iso, "tempC": temp_c, "sunPct": sun_pct, "cloudPct": cloud_pct})
+        rain_pct = None
+        if r101_raw and i < len(r101_raw) and r101_raw[i] != "-":
+            rain_pct = round(float(r101_raw[i]))
+        series.append(
+            {
+                "time": time_iso,
+                "tempC": temp_c,
+                "sunPct": sun_pct,
+                "cloudPct": cloud_pct,
+                "rainPct": rain_pct,
+            }
+        )
     return series
 
 
