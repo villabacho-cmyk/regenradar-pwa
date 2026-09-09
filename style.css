@@ -79,6 +79,10 @@ button.icon-btn:active {
   opacity: 0.7;
 }
 
+button.icon-btn:disabled {
+  opacity: 0.35;
+}
+
 #slider {
   flex: 1 1 auto;
   accent-color: var(--accent);
