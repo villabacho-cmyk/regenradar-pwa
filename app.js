@@ -529,7 +529,7 @@ function renderSunTimes(date) {
   }
   const times = sunTimesForDate(date, userLatLng[0], userLatLng[1]);
   sunTimesEl.textContent = times
-    ? `🌅 ${formatLocal(times.sunrise)}  🌇 ${formatLocal(times.sunset)}`
+    ? `☀️ ${formatLocal(times.sunrise)}  🌙 ${formatLocal(times.sunset)}`
     : "";
 }
 
