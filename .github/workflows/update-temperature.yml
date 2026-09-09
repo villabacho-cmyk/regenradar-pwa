@@ -36,10 +36,24 @@ jobs:
             exit 0
           fi
 
-          LAST_AUTHOR=$(git log -1 --pretty=format:'%an')
-          if [ "$LAST_AUTHOR" = "github-actions[bot]" ]; then
+          # Pruefung ueber die Commit-Message statt nur den Autor-Namen, da
+          # der Radar-Workflow denselben Bot-Autor nutzt - sonst amended
+          # dieser Job versehentlich den Commit des anderen Workflows
+          # (passiert, hat Pushes zerschossen).
+          LAST_MSG=$(git log -1 --pretty=format:'%s')
+          if [ "$LAST_MSG" = "Temperaturdaten aktualisiert" ]; then
             git commit --amend --no-edit
           else
             git commit -m "Temperaturdaten aktualisiert"
           fi
-          git push --force-with-lease
+
+          # Falls der Remote sich seit dem Checkout weiterbewegt hat (z.B.
+          # der andere Workflow war schneller): einmal neu ansetzen statt
+          # den ganzen Lauf scheitern zu lassen.
+          if ! git push --force-with-lease; then
+            git fetch origin main
+            git reset --soft origin/main
+            git add data/temperature
+            git commit -m "Temperaturdaten aktualisiert"
+            git push --force-with-lease
+          fi
