@@ -299,7 +299,11 @@ function renderTemperatureLabels(stations) {
   temperatureMarkers.forEach(({ marker }) => map.removeLayer(marker));
   temperatureMarkers = [];
 
-  for (const station of stations) {
+  // Nur die kuratierte Teilmenge (onMap) als Icons zeigen - sonst waere
+  // die Karte mit allen 281 Stationen komplett ueberladen. Die "naechste
+  // Station zu meinem Standort"-Suche fuer die 48h-Vorhersage nutzt
+  // trotzdem alle Stationen aus allStations (siehe nearestStation()).
+  for (const station of stations.filter((s) => s.onMap)) {
     const icon = L.divIcon({
       className: "temp-label",
       html: "",
