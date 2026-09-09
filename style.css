@@ -107,6 +107,26 @@ button.icon-btn:disabled {
   opacity: 1;
 }
 
+.radar-source-toggle {
+  position: fixed;
+  right: 12px;
+  top: calc(env(safe-area-inset-top, 12px) + 54px);
+  z-index: 900;
+  border: none;
+  background: var(--surface);
+  color: var(--accent);
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.radar-source-toggle:active {
+  opacity: 0.7;
+}
+
 .temp-label {
   display: flex;
   align-items: center;

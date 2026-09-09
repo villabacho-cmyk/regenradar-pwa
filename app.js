@@ -32,6 +32,13 @@ const TEMPERATURE_MANIFEST_URL = "data/temperature/manifest.json";
 // no-store) reicht, da ein paar Minuten Verzoegerung nicht auffallen.
 const TEMPERATURE_POLL_MS = 10 * 60 * 1000;
 
+// RainViewer: Ergaenzung fuer die Luecken im DWD-Netz (siehe Chat) - rein
+// client-seitig, keine eigene Vorback-Pipeline/Cron noetig. Liefert nur
+// die letzten ~2h, keine Prognose.
+const RAINVIEWER_API_URL = "https://api.rainviewer.com/public/weather-maps.json";
+const RAINVIEWER_POLL_MS = 5 * 60 * 1000;
+const RAINVIEWER_ATTRIBUTION = 'Radar: <a href="https://www.rainviewer.com">RainViewer</a>';
+
 const DEFAULT_CENTER = [52.52, 13.405]; // Berlin, Fallback ohne Geolocation
 const DEFAULT_ZOOM = 8;
 
@@ -42,6 +49,7 @@ const playBtn = document.getElementById("playBtn");
 const forecastStrip = document.getElementById("forecastStrip");
 const forecastLocationName = document.getElementById("forecastLocationName");
 const forecastDateLabel = document.getElementById("forecastDateLabel");
+const radarSourceToggle = document.getElementById("radarSourceToggle");
 
 function showStatus(text) {
   statusEl.textContent = text;
@@ -239,13 +247,97 @@ playBtn.addEventListener("click", () => {
   else startPlaying();
 });
 
-sliderEl.addEventListener("input", () => {
+// RainViewer: zeigt nur die letzten ~2h (keine Prognose), dafuer ohne die
+// Luecken, die das DWD-Netz zeitweise hat (siehe Chat). Eigener kleiner
+// Zeitregler ueber denselben Slider - Nutzer kann durch die Vergangenheit
+// scrollen und im Kopf extrapolieren, wohin der Regen zieht.
+let activeRadarSource = "dwd";
+let rainviewerHost = "";
+let rainviewerFrames = []; // [{time, path}], time = Unix-Sekunden
+let rainviewerIndex = -1;
+let rainviewerLayer = null;
+
+function ensureRainviewerLayer() {
+  if (!rainviewerLayer) {
+    rainviewerLayer = L.tileLayer("", {
+      tileSize: 256,
+      opacity: OVERLAY_OPACITY,
+      maxNativeZoom: 7,
+      maxZoom: 12,
+      attribution: RAINVIEWER_ATTRIBUTION,
+    });
+  }
+  return rainviewerLayer;
+}
+
+function renderRainviewerFrame(index) {
+  const frame = rainviewerFrames[index];
+  if (!frame) return;
+  rainviewerIndex = index;
+  sliderEl.value = String(index);
+  timestampEl.textContent = formatLocal(new Date(frame.time * 1000)) + " Uhr · RainViewer";
+  ensureRainviewerLayer().setUrl(`${rainviewerHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`);
+}
+
+async function refreshRainviewer() {
+  try {
+    const res = await fetch(RAINVIEWER_API_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const wasAtNewest = rainviewerFrames.length === 0 || rainviewerIndex >= rainviewerFrames.length - 1;
+    rainviewerHost = data.host;
+    rainviewerFrames = data.radar.past;
+    if (activeRadarSource === "rainviewer") {
+      sliderEl.max = String(rainviewerFrames.length - 1);
+      renderRainviewerFrame(wasAtNewest ? rainviewerFrames.length - 1 : Math.min(rainviewerIndex, rainviewerFrames.length - 1));
+    }
+  } catch (e) {
+    // Stumm scheitern - RainViewer ist eine Zusatzquelle, kein Blocker.
+  }
+}
+
+function switchToRainviewer() {
+  if (activeRadarSource === "rainviewer") return;
+  activeRadarSource = "rainviewer";
   stopPlaying();
-  renderFrame(Number(sliderEl.value));
+  playBtn.style.display = "none";
+  radarSourceToggle.textContent = "DWD";
+  if (activeOverlay) activeOverlay.setOpacity(0);
+  if (standbyOverlay) standbyOverlay.setOpacity(0);
+  ensureRainviewerLayer().addTo(map);
+  sliderEl.max = String(Math.max(0, rainviewerFrames.length - 1));
+  if (rainviewerFrames.length) renderRainviewerFrame(rainviewerFrames.length - 1);
+}
+
+function switchToDwd() {
+  if (activeRadarSource === "dwd") return;
+  activeRadarSource = "dwd";
+  playBtn.style.display = "";
+  radarSourceToggle.textContent = "RainViewer";
+  if (rainviewerLayer) map.removeLayer(rainviewerLayer);
+  if (activeOverlay) activeOverlay.setOpacity(OVERLAY_OPACITY);
+  sliderEl.max = String(frames.length - 1);
+  renderFrame(currentIndex);
+}
+
+radarSourceToggle.addEventListener("click", () => {
+  if (activeRadarSource === "dwd") switchToRainviewer();
+  else switchToDwd();
+});
+
+sliderEl.addEventListener("input", () => {
+  if (activeRadarSource === "rainviewer") {
+    renderRainviewerFrame(Number(sliderEl.value));
+  } else {
+    stopPlaying();
+    renderFrame(Number(sliderEl.value));
+  }
 });
 
 refreshFrames();
 setInterval(refreshFrames, MANIFEST_POLL_MS);
+refreshRainviewer();
+setInterval(refreshRainviewer, RAINVIEWER_POLL_MS);
 
 // Temperatur-Zahlen + Wolken/Sonne-Icon fuer eine Reihe deutscher
 // Stationen, gleichzeitig mit dem Regenradar sichtbar. Fixe Stationsliste
