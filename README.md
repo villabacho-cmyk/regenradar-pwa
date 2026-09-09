@@ -2,7 +2,7 @@
 
 Werbefreie Regenradar-App für iPhone (PWA, "Zum Home-Bildschirm hinzufügen"), gebaut auf offenen Daten des Deutschen Wetterdienstes. Kein Backend, kein Tracking, keine API-Keys im Client.
 
-Live: https://villabacho-cmyk.github.io/regenradar-pwa/
+Live: https://regenradar-pwa.villabacho.workers.dev/
 
 ## Architektur-Überblick
 
