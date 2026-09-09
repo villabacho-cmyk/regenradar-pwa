@@ -8,10 +8,15 @@
 // scripts/fetch_radar.py). Der Client hier laedt nur noch die fertigen
 // Bilder von GitHub Pages - schnell, weil kein Warten auf DWD mehr.
 //
-// Fuer einen fluessigen Loop ohne Flackern werden alle Frames vorab
-// dekodiert (img.decode()) und ueber zwei uebereinanderliegende Bild-Ebenen
-// (Doppelpufferung) angezeigt: das naechste Bild wird erst sichtbar
-// geschaltet, wenn es tatsaechlich fertig geladen ist.
+// Fuer einen fluessigen Loop ohne Flackern werden alle Frames vorab geladen
+// und ueber zwei uebereinanderliegende Bild-Ebenen (Doppelpufferung)
+// angezeigt: das naechste Bild wird erst sichtbar geschaltet, wenn es
+// tatsaechlich fertig geladen ist.
+//
+// Der Loop enthaelt 60 Minuten Vergangenheit UND 120 Minuten Prognose
+// (reine Radarecho-Extrapolation vom DWD, kein Modell-Nowcasting) - beim
+// Start bzw. nach jedem Refresh springt die Anzeige auf "jetzt"
+// (manifest.nowIndex), nicht ans Ende der Prognose.
 
 const MANIFEST_URL = "data/radar/manifest.json";
 const PLAY_INTERVAL_MS = 450;
@@ -94,6 +99,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 let frames = [];
 let currentIndex = 0;
+let nowIndex = 0; // Index des letzten Nicht-Vorhersage-Frames ("jetzt")
 let isPlaying = false;
 let playLoopToken = null;
 let manifestToken = 0; // verwirft veraltete refreshFrames-Laeufe
@@ -136,7 +142,8 @@ async function renderFrame(index) {
   const frame = frames[index];
   if (!frame) return;
   sliderEl.value = String(index);
-  timestampEl.textContent = formatLocal(new Date(frame.time)) + " Uhr";
+  timestampEl.textContent =
+    formatLocal(new Date(frame.time)) + " Uhr" + (frame.isForecast ? " · Prognose" : "");
 
   if (!standbyOverlay) return;
   await setOverlayImage(standbyOverlay, frameUrl(frame));
@@ -168,8 +175,13 @@ async function refreshFrames() {
     ensureOverlays(bounds);
   }
 
-  const wasAtNewest = frames.length === 0 || currentIndex >= frames.length - 1;
+  // Beim allerersten Laden sowie wenn zuvor am "Jetzt"-Frame oder in der
+  // Prognose gestanden wurde, nach dem Refresh wieder dort einsteigen -
+  // sonst bleibt die aktuelle Position (z.B. beim manuellen Durchscrubben
+  // der Vergangenheit) erhalten.
+  const wasAtNow = frames.length === 0 || currentIndex >= nowIndex;
   frames = manifest.frames;
+  nowIndex = manifest.nowIndex;
   sliderEl.max = String(frames.length - 1);
 
   stopPlaying();
@@ -188,7 +200,7 @@ async function refreshFrames() {
 
   hideStatus();
   playBtn.disabled = false;
-  await renderFrame(wasAtNewest ? frames.length - 1 : Math.min(currentIndex, frames.length - 1));
+  await renderFrame(wasAtNow ? nowIndex : Math.min(currentIndex, frames.length - 1));
 }
 
 function stopPlaying() {

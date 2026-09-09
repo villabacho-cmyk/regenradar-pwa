@@ -7,6 +7,12 @@ ausgefuehrt - siehe .github/workflows/update-radar.yml.
 Der Bild-Ausschnitt entspricht exakt der vollen Abdeckung des DWD-Layers
 (Deutschland + Grenzregion) - mehr Daten gibt es bei diesem Layer nicht,
 es wird also nichts eingeschraenkt.
+
+Das Layer "Radar_rv_product_1x1km_ger" (Analyse UND Vorhersage) liefert
+laut GetCapabilities Zeitwerte bis zu 120 Minuten nach der aktuellen
+Analysezeit (REFERENCE_TIME) im 5-Minuten-Takt - reine Extrapolation der
+Radarechos, keine Modell-Vorhersage. Wir holen also zusaetzlich zu den
+60 Minuten Vergangenheit die vollen 120 Minuten Prognose dazu.
 """
 
 import json
@@ -30,7 +36,8 @@ BBOX_LATLNG = {
 IMAGE_WIDTH = 1000
 IMAGE_HEIGHT = 974
 
-FRAME_COUNT = 12  # 12 * 5 min = 60 Minuten
+PAST_FRAME_COUNT = 12  # 12 * 5 min = 60 Minuten Vergangenheit
+FORECAST_FRAME_COUNT = 24  # 24 * 5 min = 120 Minuten Vorhersage
 FRAME_STEP_MIN = 5
 LAG_BUFFER_MIN = 10  # DWD braucht ein paar Minuten bis das neueste Bild verfuegbar ist
 
@@ -38,11 +45,23 @@ OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "radar")
 
 
 def build_frame_times():
+    """Liefert (zeitpunkt, ist_vorhersage)-Paare: PAST_FRAME_COUNT Frames aus
+    der Vergangenheit bis zum "jetzt"-Anker (letztes Element, ist_vorhersage
+    False), danach FORECAST_FRAME_COUNT Frames in die Zukunft."""
     now = datetime.now(timezone.utc)
     floored_minute = (now.minute // FRAME_STEP_MIN) * FRAME_STEP_MIN
-    latest = now.replace(minute=floored_minute, second=0, microsecond=0)
-    latest -= timedelta(minutes=LAG_BUFFER_MIN)
-    return [latest - timedelta(minutes=i * FRAME_STEP_MIN) for i in range(FRAME_COUNT - 1, -1, -1)]
+    anchor = now.replace(minute=floored_minute, second=0, microsecond=0)
+    anchor -= timedelta(minutes=LAG_BUFFER_MIN)
+
+    past = [
+        (anchor - timedelta(minutes=i * FRAME_STEP_MIN), False)
+        for i in range(PAST_FRAME_COUNT - 1, -1, -1)
+    ]
+    forecast = [
+        (anchor + timedelta(minutes=i * FRAME_STEP_MIN), True)
+        for i in range(1, FORECAST_FRAME_COUNT + 1)
+    ]
+    return past + forecast
 
 
 def build_wms_url(time_iso):
@@ -77,16 +96,20 @@ def fetch_frame(time_iso, dest_path):
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     frames = build_frame_times()
+    total = len(frames)
 
     manifest_frames = []
+    now_index = None
     failures = 0
-    for i, dt in enumerate(frames):
+    for i, (dt, is_forecast) in enumerate(frames):
         time_iso = dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
         filename = f"frame-{i:02d}.png"
         dest_path = os.path.join(OUT_DIR, filename)
         try:
             fetch_frame(time_iso, dest_path)
-            manifest_frames.append({"file": filename, "time": time_iso})
+            manifest_frames.append({"file": filename, "time": time_iso, "isForecast": is_forecast})
+            if not is_forecast:
+                now_index = len(manifest_frames) - 1
         except Exception as e:
             print(f"Warnung: Frame {time_iso} fehlgeschlagen: {e}", file=sys.stderr)
             failures += 1
@@ -98,12 +121,15 @@ def main():
     manifest = {
         "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         "bbox": BBOX_LATLNG,
+        # Index des letzten Nicht-Vorhersage-Frames ("jetzt") - Client startet
+        # standardmaessig hier statt am Ende der Vorhersage.
+        "nowIndex": now_index if now_index is not None else len(manifest_frames) - 1,
         "frames": manifest_frames,
     }
     with open(os.path.join(OUT_DIR, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"Fertig: {len(manifest_frames)}/{FRAME_COUNT} Frames geladen, {failures} Fehler.")
+    print(f"Fertig: {len(manifest_frames)}/{total} Frames geladen, {failures} Fehler.")
 
 
 if __name__ == "__main__":

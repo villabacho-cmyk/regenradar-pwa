@@ -1,10 +1,7 @@
 # Parkplatz und Backlog — Regenradar PWA
 
-## Vorhersage-Frames (Nowcast) zusätzlich zum Vergangenheits-Loop
-- **Was:** Das DWD-Layer `Radar_rv_product_1x1km_ger` enthält laut Titel auch Vorhersage-Daten (Analyse *und* Vorhersage), nicht nur Vergangenheit. WetterOnline zeigt typischerweise auch ein Stück Prognose mit an.
-- **Warum zurückgestellt:** Nicht explizit gewünscht; erste Version bewusst auf reinen Vergangenheits-Loop (60 Min) beschränkt, um die Zeit-Logik einfach zu halten.
-- **Wann wieder relevant:** Wenn der reine Rückblick-Loop im Alltag zu wenig Info liefert (z.B. "regnet es gleich noch?").
-- **Implementierungs-Skizze:** In `build_frame_times()` in [scripts/fetch_radar.py](scripts/fetch_radar.py) zusätzliche Zeitstempel *nach* "jetzt" generieren (das Skript laeuft jetzt serverseitig per GitHub Action, nicht mehr im Client); prüfen wie weit das RV-Produkt tatsächlich in die Zukunft reicht (via GetCapabilities `REFERENCE_TIME`-Dimension).
+## ~~Vorhersage-Frames (Nowcast) zusätzlich zum Vergangenheits-Loop~~ — erledigt
+Per `GetCapabilities` verifiziert: das RV-Layer liefert 120 Minuten Vorhersage (reine Radarecho-Extrapolation) im 5-Minuten-Takt nach der aktuellen Analysezeit. `build_frame_times()` in [scripts/fetch_radar.py](scripts/fetch_radar.py) erzeugt jetzt 12 Vergangenheits- + 24 Vorhersage-Frames, Manifest trägt `nowIndex` + `isForecast` pro Frame, `app.js` startet standardmäßig am "Jetzt"-Frame und markiert Prognose-Zeitpunkte im Timestamp-Label.
 
 ## Farblegende für Niederschlagsintensität
 - **Was:** Kleine Legende (mm/h-Farbskala) am Kartenrand einblenden.
