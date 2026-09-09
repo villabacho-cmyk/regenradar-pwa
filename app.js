@@ -44,9 +44,7 @@ const forecastSheet = document.getElementById("forecastSheet");
 const forecastClose = document.getElementById("forecastClose");
 const forecastStrip = document.getElementById("forecastStrip");
 const forecastLocationName = document.getElementById("forecastLocationName");
-const forecastDatePin = document.getElementById("forecastDatePin");
 const forecastDateLabel = document.getElementById("forecastDateLabel");
-const forecastDateTrack = document.querySelector(".forecast-date-track");
 
 function showStatus(text) {
   statusEl.textContent = text;
@@ -379,7 +377,7 @@ function renderForecastStrip() {
     return;
   }
   const station = nearestStation(userLatLng, allStations);
-  forecastLocationName.textContent = `Vorhersage · ${station.name}`;
+  forecastLocationName.textContent = station.name;
 
   const cutoff = Date.now() - 30 * 60 * 1000; // kleiner Puffer, damit die laufende Stunde nicht rausfaellt
   const upcoming = station.series.filter(
@@ -401,9 +399,8 @@ function renderForecastStrip() {
   updateForecastDateIndicator();
 }
 
-// Datum/Wochentag-Pfeil oberhalb der Leiste: zeigt beim Scrollen immer
-// das Datum der Stunden-Karte an, die gerade in der Mitte der
-// sichtbaren Leiste steht.
+// Datum/Wochentag im Header: zeigt beim Scrollen immer das Datum der
+// Stunden-Karte an, die gerade in der Mitte der sichtbaren Leiste steht.
 function updateForecastDateIndicator() {
   const hours = forecastStrip.querySelectorAll(".forecast-hour");
   if (hours.length === 0) return;
@@ -421,13 +418,6 @@ function updateForecastDateIndicator() {
     }
   }
   forecastDateLabel.textContent = closest.dataset.dateLabel;
-
-  const maxScroll = forecastStrip.scrollWidth - forecastStrip.clientWidth;
-  const frac = maxScroll > 0 ? forecastStrip.scrollLeft / maxScroll : 0;
-  const trackWidth = forecastDateTrack.clientWidth;
-  const pinWidth = forecastDatePin.offsetWidth;
-  const left = Math.min(trackWidth - pinWidth / 2, Math.max(pinWidth / 2, frac * trackWidth));
-  forecastDatePin.style.left = `${left}px`;
 }
 
 forecastStrip.addEventListener("scroll", updateForecastDateIndicator, { passive: true });
