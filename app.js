@@ -49,6 +49,7 @@ const playBtn = document.getElementById("playBtn");
 const forecastStrip = document.getElementById("forecastStrip");
 const forecastLocationName = document.getElementById("forecastLocationName");
 const forecastDateLabel = document.getElementById("forecastDateLabel");
+const sunTimesEl = document.getElementById("sunTimes");
 const radarSourceToggle = document.getElementById("radarSourceToggle");
 
 function showStatus(text) {
@@ -459,6 +460,79 @@ function formatWeekdayDate(date) {
   return date.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
 }
 
+function mod(x, m) {
+  return ((x % m) + m) % m;
+}
+function toRad(deg) {
+  return (deg * Math.PI) / 180;
+}
+function toDeg(rad) {
+  return (rad * 180) / Math.PI;
+}
+
+// Sonnenauf-/-untergang: klassischer Algorithmus aus dem "Almanac for
+// Computers" (1990, US Nautical Almanac Office) - Genauigkeit ~1-2 Minuten,
+// komplett client-seitig, kein API-Key/keine externe Abhaengigkeit noetig.
+function calcSunUtcHours(date, lat, lon, isSunrise) {
+  const zenith = 90.83; // Standardzenit inkl. atmosph. Refraktion + Sonnenradius
+
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  const N1 = Math.floor((275 * month) / 9);
+  const N2 = Math.floor((month + 9) / 12);
+  const N3 = 1 + Math.floor((year - 4 * Math.floor(year / 4) + 2) / 3);
+  const N = N1 - N2 * N3 + day - 30;
+
+  const lngHour = lon / 15;
+  const t = isSunrise ? N + (6 - lngHour) / 24 : N + (18 - lngHour) / 24;
+
+  const M = 0.9856 * t - 3.289;
+  const L = mod(M + 1.916 * Math.sin(toRad(M)) + 0.02 * Math.sin(2 * toRad(M)) + 282.634, 360);
+
+  let RA = mod(toDeg(Math.atan(0.91764 * Math.tan(toRad(L)))), 360);
+  const Lquadrant = Math.floor(L / 90) * 90;
+  const RAquadrant = Math.floor(RA / 90) * 90;
+  RA = (RA + (Lquadrant - RAquadrant)) / 15;
+
+  const sinDec = 0.39782 * Math.sin(toRad(L));
+  const cosDec = Math.cos(Math.asin(sinDec));
+  const cosH =
+    (Math.cos(toRad(zenith)) - sinDec * Math.sin(toRad(lat))) / (cosDec * Math.cos(toRad(lat)));
+  if (cosH > 1 || cosH < -1) return null; // Polarnacht/Mitternachtssonne - hier nie relevant
+
+  let H = isSunrise ? 360 - toDeg(Math.acos(cosH)) : toDeg(Math.acos(cosH));
+  H = H / 15;
+
+  const T = H + RA - 0.06571 * t - 6.622;
+  return mod(T - lngHour, 24);
+}
+
+function sunTimesForDate(date, lat, lon) {
+  const sunriseUtc = calcSunUtcHours(date, lat, lon, true);
+  const sunsetUtc = calcSunUtcHours(date, lat, lon, false);
+  if (sunriseUtc == null || sunsetUtc == null) return null;
+
+  const toDateObj = (utcHours) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCMinutes(Math.round(utcHours * 60));
+    return d;
+  };
+  return { sunrise: toDateObj(sunriseUtc), sunset: toDateObj(sunsetUtc) };
+}
+
+function renderSunTimes(date) {
+  if (!userLatLng) {
+    sunTimesEl.textContent = "";
+    return;
+  }
+  const times = sunTimesForDate(date, userLatLng[0], userLatLng[1]);
+  sunTimesEl.textContent = times
+    ? `🌅 ${formatLocal(times.sunrise)}  🌇 ${formatLocal(times.sunset)}`
+    : "";
+}
+
 function renderForecastStrip() {
   if (!userLatLng || allStations.length === 0) {
     forecastStrip.innerHTML = `<div class="forecast-empty">Standort/Daten noch nicht verfügbar</div>`;
@@ -476,7 +550,7 @@ function renderForecastStrip() {
     .map((entry) => {
       const date = new Date(entry.time);
       return `
-      <div class="forecast-hour" data-date-label="${formatWeekdayDate(date)}">
+      <div class="forecast-hour" data-date-label="${formatWeekdayDate(date)}" data-date-ms="${date.getTime()}">
         <span class="fh-time">${formatLocal(date)}</span>
         <span class="fh-icon">${cloudIcon(entry.cloudPct)}</span>
         <span class="fh-temp">${Math.round(entry.tempC)}°</span>
@@ -500,7 +574,9 @@ function updateForecastDateIndicator() {
   let firstVisibleIndex = hours.findIndex((el) => el.getBoundingClientRect().right > stripLeft);
   if (firstVisibleIndex === -1) firstVisibleIndex = 0;
   const anchorIndex = Math.min(firstVisibleIndex + 1, hours.length - 1);
-  forecastDateLabel.textContent = hours[anchorIndex].dataset.dateLabel;
+  const anchorEl = hours[anchorIndex];
+  forecastDateLabel.textContent = anchorEl.dataset.dateLabel;
+  renderSunTimes(new Date(Number(anchorEl.dataset.dateMs)));
 }
 
 forecastStrip.addEventListener("scroll", updateForecastDateIndicator, { passive: true });
@@ -510,6 +586,7 @@ if ("geolocation" in navigator) {
     (pos) => {
       const latlng = [pos.coords.latitude, pos.coords.longitude];
       userLatLng = latlng;
+      renderSunTimes(new Date());
       renderForecastStrip();
       map.setView(latlng, DEFAULT_ZOOM);
       // Kreis statt Leaflet-Standardmarker: kein Icon-Asset noetig (der
