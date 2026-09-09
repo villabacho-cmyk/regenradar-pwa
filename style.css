@@ -56,19 +56,18 @@ footer {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  gap: 10px;
+  padding: 6px 16px;
   background: var(--surface);
 }
 
 button.icon-btn {
   border: none;
-  background: var(--accent);
-  color: #0a1220;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  font-size: 18px;
+  background: none;
+  color: var(--accent);
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -134,59 +133,21 @@ button.icon-btn:disabled {
     0 0 4px rgba(0, 0, 0, 0.8);
 }
 
-.forecast-toggle {
-  position: fixed;
-  right: 16px;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  z-index: 900;
-  border: none;
-  background: var(--accent);
-  color: #0a1220;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-}
-
-.forecast-toggle:active {
-  opacity: 0.7;
-}
-
-.forecast-sheet {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+.forecast-panel {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-radius: 14px 14px 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
-  /* max-height statt transform: translateY zum Ein-/Ausblenden - eine
-     Prozent-Transform relativ zur eigenen (variablen) Inhaltshoehe hat
-     das Sheet im geschlossenen Zustand nicht zuverlaessig aus dem
-     sichtbaren Bereich geschoben. */
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.25s ease;
-  z-index: 950;
-}
-
-.forecast-sheet.open {
-  max-height: 42vh;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .forecast-sheet-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 12px 16px;
-  font-size: 14px;
+  padding: 8px 16px 0;
+  font-size: 13px;
   font-weight: 600;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex: 0 0 auto;
 }
 
@@ -204,15 +165,6 @@ button.icon-btn:disabled {
   color: var(--accent);
   font-size: 13px;
   font-weight: 600;
-}
-
-.forecast-close {
-  border: none;
-  background: none;
-  color: var(--muted);
-  font-size: 16px;
-  padding: 4px 6px;
-  flex: 0 0 auto;
 }
 
 .forecast-strip {

@@ -39,9 +39,6 @@ const statusEl = document.getElementById("status");
 const timestampEl = document.getElementById("timestamp");
 const sliderEl = document.getElementById("slider");
 const playBtn = document.getElementById("playBtn");
-const forecastToggle = document.getElementById("forecastToggle");
-const forecastSheet = document.getElementById("forecastSheet");
-const forecastClose = document.getElementById("forecastClose");
 const forecastStrip = document.getElementById("forecastStrip");
 const forecastLocationName = document.getElementById("forecastLocationName");
 const forecastDateLabel = document.getElementById("forecastDateLabel");
@@ -338,7 +335,7 @@ async function refreshTemperature() {
     const manifest = await res.json();
     allStations = manifest.stations;
     renderTemperatureLabels(manifest.stations);
-    if (forecastSheet.classList.contains("open")) renderForecastStrip();
+    renderForecastStrip();
   } catch (e) {
     // Stumm scheitern - Temperatur-Zahlen sind ein Zusatz, kein Blocker
     // fuer den Regenradar-Grund-Use-Case.
@@ -416,22 +413,12 @@ function updateForecastDateIndicator() {
 
 forecastStrip.addEventListener("scroll", updateForecastDateIndicator, { passive: true });
 
-forecastToggle.addEventListener("click", () => {
-  const isOpen = forecastSheet.classList.toggle("open");
-  forecastToggle.setAttribute("aria-expanded", String(isOpen));
-  if (isOpen) renderForecastStrip();
-});
-
-forecastClose.addEventListener("click", () => {
-  forecastSheet.classList.remove("open");
-  forecastToggle.setAttribute("aria-expanded", "false");
-});
-
 if ("geolocation" in navigator) {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const latlng = [pos.coords.latitude, pos.coords.longitude];
       userLatLng = latlng;
+      renderForecastStrip();
       map.setView(latlng, DEFAULT_ZOOM);
       // Kreis statt Leaflet-Standardmarker: kein Icon-Asset noetig (der
       // Standard-Marker bricht oft, wenn Leaflet nur per CDN-Script

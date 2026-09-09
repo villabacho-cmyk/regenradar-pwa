@@ -26,23 +26,20 @@
     <div id="status"></div>
   </div>
 
-  <button id="forecastToggle" class="forecast-toggle" aria-label="48-Stunden-Vorhersage" aria-expanded="false">48h</button>
+  <footer>
+    <button id="playBtn" class="icon-btn" aria-label="Play/Pause">▶</button>
+    <input id="slider" type="range" min="0" max="0" value="0" step="1" />
+  </footer>
 
-  <div id="forecastSheet" class="forecast-sheet">
+  <div id="forecastSheet" class="forecast-panel">
     <div class="forecast-sheet-header">
       <span class="forecast-header-text">
         <span id="forecastLocationName"></span>
         <span id="forecastDateLabel" class="forecast-date-label"></span>
       </span>
-      <button id="forecastClose" class="forecast-close" aria-label="Schließen">✕</button>
     </div>
     <div id="forecastStrip" class="forecast-strip"></div>
   </div>
-
-  <footer>
-    <button id="playBtn" class="icon-btn" aria-label="Play/Pause">▶</button>
-    <input id="slider" type="range" min="0" max="0" value="0" step="1" />
-  </footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
