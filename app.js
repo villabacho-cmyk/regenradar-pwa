@@ -399,25 +399,19 @@ function renderForecastStrip() {
   updateForecastDateIndicator();
 }
 
-// Datum/Wochentag im Header: zeigt beim Scrollen immer das Datum der
-// Stunden-Karte an, die gerade in der Mitte der sichtbaren Leiste steht.
+// Datum/Wochentag im Header: zeigt beim Scrollen das Datum der zweiten
+// von links sichtbaren Stunden-Karte an (nicht die mittlere - auf dem
+// schmalen iPhone-Screen mit nur ~6-7 sichtbaren Karten lag die Mitte
+// sonst schon 3-4h vor der linken Kante, der Tageswechsel kam zu frueh).
 function updateForecastDateIndicator() {
-  const hours = forecastStrip.querySelectorAll(".forecast-hour");
+  const hours = Array.from(forecastStrip.querySelectorAll(".forecast-hour"));
   if (hours.length === 0) return;
 
-  const stripRect = forecastStrip.getBoundingClientRect();
-  const centerX = stripRect.left + stripRect.width / 2;
-  let closest = hours[0];
-  let closestDist = Infinity;
-  for (const el of hours) {
-    const rect = el.getBoundingClientRect();
-    const dist = Math.abs(rect.left + rect.width / 2 - centerX);
-    if (dist < closestDist) {
-      closestDist = dist;
-      closest = el;
-    }
-  }
-  forecastDateLabel.textContent = closest.dataset.dateLabel;
+  const stripLeft = forecastStrip.getBoundingClientRect().left;
+  let firstVisibleIndex = hours.findIndex((el) => el.getBoundingClientRect().right > stripLeft);
+  if (firstVisibleIndex === -1) firstVisibleIndex = 0;
+  const anchorIndex = Math.min(firstVisibleIndex + 1, hours.length - 1);
+  forecastDateLabel.textContent = hours[anchorIndex].dataset.dateLabel;
 }
 
 forecastStrip.addEventListener("scroll", updateForecastDateIndicator, { passive: true });
