@@ -109,16 +109,16 @@ button.icon-btn:disabled {
 }
 
 .temp-label {
-  color: #fff;
+  color: #ff9500;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
-  background: rgba(15, 20, 32, 0.82); /* = --surface, transparent, wie #status */
-  padding: 2px 6px;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  -webkit-text-stroke: 1px #000;
+  text-stroke: 1px #000;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+    0 0 4px rgba(0, 0, 0, 0.8);
 }
 
 .leaflet-control-attribution {
