@@ -276,7 +276,7 @@ function renderTemperatureLabels(cities) {
     if (!entry) continue;
     const icon = L.divIcon({
       className: "temp-label",
-      html: `${Math.round(entry.tempC)}°`,
+      html: `${Math.round(entry.tempC)}`,
       iconSize: [0, 0],
       iconAnchor: [-8, -8], // Zahl etwas versetzt neben dem Stadtpunkt
     });
