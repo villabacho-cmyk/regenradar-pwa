@@ -44,6 +44,9 @@ const forecastSheet = document.getElementById("forecastSheet");
 const forecastClose = document.getElementById("forecastClose");
 const forecastStrip = document.getElementById("forecastStrip");
 const forecastLocationName = document.getElementById("forecastLocationName");
+const forecastDatePin = document.getElementById("forecastDatePin");
+const forecastDateLabel = document.getElementById("forecastDateLabel");
+const forecastDateTrack = document.querySelector(".forecast-date-track");
 
 function showStatus(text) {
   statusEl.textContent = text;
@@ -365,9 +368,14 @@ function nearestStation(latlng, stations) {
   return best;
 }
 
+function formatWeekdayDate(date) {
+  return date.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+}
+
 function renderForecastStrip() {
   if (!userLatLng || allStations.length === 0) {
     forecastStrip.innerHTML = `<div class="forecast-empty">Standort/Daten noch nicht verfügbar</div>`;
+    forecastDateLabel.textContent = "";
     return;
   }
   const station = nearestStation(userLatLng, allStations);
@@ -378,17 +386,51 @@ function renderForecastStrip() {
     (entry) => entry.tempC != null && new Date(entry.time).getTime() >= cutoff
   );
   forecastStrip.innerHTML = upcoming
-    .map(
-      (entry) => `
-      <div class="forecast-hour">
-        <span class="fh-time">${formatLocal(new Date(entry.time))}</span>
+    .map((entry) => {
+      const date = new Date(entry.time);
+      return `
+      <div class="forecast-hour" data-date-label="${formatWeekdayDate(date)}">
+        <span class="fh-time">${formatLocal(date)}</span>
         <span class="fh-icon">${cloudIcon(entry.cloudPct)}</span>
         <span class="fh-temp">${Math.round(entry.tempC)}°</span>
         <span class="fh-rain">${entry.rainPct != null ? entry.rainPct + "%" : "–"}</span>
-      </div>`
-    )
+      </div>`;
+    })
     .join("");
+  forecastStrip.scrollLeft = 0;
+  updateForecastDateIndicator();
 }
+
+// Datum/Wochentag-Pfeil oberhalb der Leiste: zeigt beim Scrollen immer
+// das Datum der Stunden-Karte an, die gerade in der Mitte der
+// sichtbaren Leiste steht.
+function updateForecastDateIndicator() {
+  const hours = forecastStrip.querySelectorAll(".forecast-hour");
+  if (hours.length === 0) return;
+
+  const stripRect = forecastStrip.getBoundingClientRect();
+  const centerX = stripRect.left + stripRect.width / 2;
+  let closest = hours[0];
+  let closestDist = Infinity;
+  for (const el of hours) {
+    const rect = el.getBoundingClientRect();
+    const dist = Math.abs(rect.left + rect.width / 2 - centerX);
+    if (dist < closestDist) {
+      closestDist = dist;
+      closest = el;
+    }
+  }
+  forecastDateLabel.textContent = closest.dataset.dateLabel;
+
+  const maxScroll = forecastStrip.scrollWidth - forecastStrip.clientWidth;
+  const frac = maxScroll > 0 ? forecastStrip.scrollLeft / maxScroll : 0;
+  const trackWidth = forecastDateTrack.clientWidth;
+  const pinWidth = forecastDatePin.offsetWidth;
+  const left = Math.min(trackWidth - pinWidth / 2, Math.max(pinWidth / 2, frac * trackWidth));
+  forecastDatePin.style.left = `${left}px`;
+}
+
+forecastStrip.addEventListener("scroll", updateForecastDateIndicator, { passive: true });
 
 forecastToggle.addEventListener("click", () => {
   const isOpen = forecastSheet.classList.toggle("open");
