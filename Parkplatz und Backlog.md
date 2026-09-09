@@ -36,8 +36,11 @@ Auf dem echten GitHub-Pages-Host (HTTPS) registriert sich der Service Worker sau
 - **Wann wieder relevant:** Falls trotz des ruckeligen Looks Interesse besteht, oder eine bessere/schnellere Satellitenquelle gefunden wird.
 - **Implementierungs-Skizze:** Analog zu `fetch_radar.py` einen Layer-Toggle mit den 3h-Satellitenframes bauen; alternativ MOSMIX-Bewölkungsgrad (`N`/`Neff`/`Nl`/`Nm`/`Nh`, im selben Datensatz wie Temperatur/Sonnenschein vorhanden) als numerische Alternative statt Kartenlayer.
 
-## Weltweite Abdeckung (aktuell nicht möglich)
-- **Was:** User-Frage, ob auch außerhalb Deutschlands Radardaten gezeigt werden können.
-- **Warum nicht möglich:** Der DWD betreibt seine Wetterradare nur in/um Deutschland — das ist eine Datenverfügbarkeits-Grenze, keine Speicher- oder Auflösungsfrage. Für weltweite Abdeckung bräuchte es eine andere Datenquelle.
-- **Wann wieder relevant:** Falls häufig im Ausland genutzt.
-- **Implementierungs-Skizze:** Alternative Datenquelle wie RainViewer (globaler Radar-Mosaik-Dienst) prüfen — eigene Recherche zu Kosten/Lizenz nötig, noch nicht gemacht.
+## ~~Weltweite Abdeckung~~ — erledigt (mit Einschränkung)
+RainViewer als Toggle-Layer eingebaut (siehe unten) — deckt auch außerhalb Deutschlands ab. Einschränkung: nur ~2h Vergangenheit, keine Prognose, geringere native Auflösung als DWD (Zoom-Stufe 7 gecappt).
+
+## ~~DWD-Netzlücken (z.B. bei Berlin/Eberswalde)~~ — erledigt
+DWD's Radarkomposit hat zeitlich schwankende (nicht permanente!) Abdeckungslücken an Nahtstellen zwischen Radarstationen — empirisch über mehrere Zeitpunkte verifiziert, kein fester geometrischer Fehler. RainViewer als zweite Datenquelle per Toggle-Button (oben rechts auf der Karte) eingebaut: global aggregiert aus 1200+ Stationen, umgeht die DWD-spezifischen Lücken. Eigener Zeitregler für RainViewer (letzte ~2h, keine Prognose vorhanden). Details siehe [README.md](README.md).
+
+## ~~GitHub-Actions-Cron unzuverlässig~~ — erledigt
+GitHub's eigener `schedule`-Trigger hat über Stunden hinweg fast nie von selbst ausgelöst (nur 1x autonom beobachtet). Externer Cronjob bei cron-job.org triggert jetzt zuverlässig per GitHub-API + Fine-grained PAT (siehe README.md, Abschnitt "Update-Pipeline"). **Wiedervorlage:** Falls der PAT abläuft/widerrufen wird, muss er erneuert werden, sonst frieren die Daten wieder ein.
