@@ -17,6 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Volle Historie statt Standard-Flach-Checkout: ein flacher
+          # Checkout hat in Kombination mit "git commit --amend" schon
+          # einmal dazu gefuehrt, dass die komplette Repo-Historie beim
+          # Push auf einen wurzellosen Einzel-Commit zusammenfiel.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
