@@ -1,20 +1,25 @@
-// Regenradar: OSM-Basiskarte + DWD-Radar (offene Geodaten, WMS mit Zeit-Dimension).
-// Kein Backend, keine Werbung, keine API-Keys.
+// Regenradar: OSM-Basiskarte + vorab gebackene DWD-Radar-Frames.
+// Kein Backend im eigentlichen Sinn, keine Werbung, keine API-Keys.
 //
-// Wichtig: die einzelnen Zeit-Frames werden VOR dem Abspielen komplett als
-// Bild-Blobs vorgeladen (DWD antwortet zu langsam fuer Live-Requests im
-// 450ms-Takt). Beim Loop wird dann nur noch zwischen bereits geladenen
-// Bildern umgeschaltet, kein Netzwerk-Request pro Frame mehr.
+// Die Radar-Bilder werden NICHT live beim Laden der Seite vom DWD geholt
+// (der DWD-Server braucht ca. 3-4s pro Bild - viel zu langsam fuer den
+// Live-Betrieb). Stattdessen holt sie ein GitHub-Actions-Workflow alle
+// 10 Minuten im Hintergrund und legt sie unter data/radar/ ab (siehe
+// scripts/fetch_radar.py). Der Client hier laedt nur noch die fertigen
+// Bilder von GitHub Pages - schnell, weil kein Warten auf DWD mehr.
+//
+// Fuer einen fluessigen Loop ohne Flackern werden alle Frames vorab
+// dekodiert (img.decode()) und ueber zwei uebereinanderliegende Bild-Ebenen
+// (Doppelpufferung) angezeigt: das naechste Bild wird erst sichtbar
+// geschaltet, wenn es tatsaechlich fertig geladen ist.
 
-const DWD_WMS_URL = "https://maps.dwd.de/geoserver/dwd/wms";
-const DWD_LAYER = "Radar_rv_product_1x1km_ger";
-
-const FRAME_COUNT = 18; // 18 * 5 min = 90 Minuten Loop
-const FRAME_STEP_MIN = 5;
-const LAG_BUFFER_MIN = 10; // DWD braucht ein paar Minuten bis das neueste Bild verfuegbar ist
+const MANIFEST_URL = "data/radar/manifest.json";
 const PLAY_INTERVAL_MS = 450;
-const PRELOAD_CONCURRENCY = 4;
-const MOVE_DEBOUNCE_MS = 300;
+const MANIFEST_POLL_MS = 90 * 1000; // die meisten Frames kommen dank
+// zeitstempel-basiertem Cache-Busting eh aus dem Browser-Cache - billig genug
+// fuer haeufiges Nachfragen.
+const OVERLAY_OPACITY = 0.75;
+const ATTRIBUTION = "Radardaten: Deutscher Wetterdienst (Open Data)";
 
 const DEFAULT_CENTER = [52.52, 13.405]; // Berlin, Fallback ohne Geolocation
 const DEFAULT_ZOOM = 8;
@@ -38,40 +43,43 @@ function flashStatus(text, timeoutMs) {
   setTimeout(hideStatus, timeoutMs);
 }
 
-function buildFrameTimes() {
-  const now = new Date();
-  const flooredMinutes = Math.floor(now.getUTCMinutes() / FRAME_STEP_MIN) * FRAME_STEP_MIN;
-  const latest = new Date(now);
-  latest.setUTCMinutes(flooredMinutes, 0, 0);
-  latest.setUTCMinutes(latest.getUTCMinutes() - LAG_BUFFER_MIN);
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  const result = [];
-  for (let i = FRAME_COUNT - 1; i >= 0; i--) {
-    result.push(new Date(latest.getTime() - i * FRAME_STEP_MIN * 60 * 1000));
-  }
-  return result;
+// Verhindert, dass eine haengende Anfrage (z.B. Bild nicht erreichbar) den
+// Loop fuer immer bei "Lade Radardaten..." stehen laesst.
+function withTimeout(promise, ms) {
+  return Promise.race([promise, wait(ms)]);
 }
 
 function formatLocal(date) {
   return date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
-function buildWmsImageUrl(bbox, width, height, timeIso) {
-  const params = new URLSearchParams({
-    service: "WMS",
-    version: "1.3.0",
-    request: "GetMap",
-    layers: DWD_LAYER,
-    styles: "",
-    format: "image/png",
-    transparent: "true",
-    crs: "EPSG:3857",
-    bbox: bbox.join(","),
-    width: String(width),
-    height: String(height),
-    time: timeIso,
+function frameUrl(frame) {
+  // Zeitstempel als Cache-Buster: jede (Datei, Zeit)-Kombination ist inhaltlich
+  // stabil, der Browser darf sie also cachen - nur neue Zeitstempel werden
+  // tatsaechlich frisch vom Netz geholt.
+  return `${MANIFEST_URL.replace("manifest.json", "")}${frame.file}?t=${encodeURIComponent(frame.time)}`;
+}
+
+// Laedt das Bild schon mal offscreen, damit es beim spaeteren Anzeigen aus
+// dem Browser-Cache kommt statt live nachgeladen zu werden.
+//
+// Bewusst KEIN img.decode() hier: das haengt sich in manchen Browser-
+// Umgebungen fuer nicht im DOM haengende Images komplett auf (nie
+// aufloesend, kein Fehler) - waere schlimmer als das Problem, das es loesen
+// sollte. Die eigentliche Flacker-Vermeidung passiert stattdessen ueber die
+// Doppelpufferung unten: ein Bild wird erst sichtbar geschaltet, wenn sein
+// eigenes load-Event gefeuert hat.
+function primeLoad(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve("loaded");
+    img.onerror = () => resolve("error");
+    img.src = url;
   });
-  return `${DWD_WMS_URL}?${params.toString()}`;
 }
 
 const map = L.map("map", {
@@ -84,122 +92,124 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap-Mitwirkende",
 }).addTo(map);
 
-let frames = buildFrameTimes();
-let currentIndex = frames.length - 1;
+let frames = [];
+let currentIndex = 0;
 let isPlaying = false;
-let playTimer = null;
-let frameCache = new Map(); // isoString -> objectURL
-let radarOverlay = null;
-let preloadToken = 0; // verwirft veraltete Preload-Laeufe (z.B. nach schnellem Pan)
+let playLoopToken = null;
+let manifestToken = 0; // verwirft veraltete refreshFrames-Laeufe
 
-sliderEl.max = String(frames.length - 1);
-sliderEl.value = String(currentIndex);
+// Doppelpufferung: overlayA/overlayB liegen exakt uebereinander, immer nur
+// eine ist sichtbar. "active" zeigt das aktuelle Bild, "standby" bekommt im
+// Hintergrund das naechste Bild und wird erst nach dessen load-Event sichtbar.
+let overlayA = null;
+let overlayB = null;
+let activeOverlay = null;
+let standbyOverlay = null;
 
-function currentViewSnapshot() {
-  const bounds = map.getBounds();
-  const sw = L.CRS.EPSG3857.project(bounds.getSouthWest());
-  const ne = L.CRS.EPSG3857.project(bounds.getNorthEast());
-  const size = map.getSize();
-  return {
-    latLngBounds: bounds,
-    bbox: [sw.x, sw.y, ne.x, ne.y],
-    width: Math.max(1, Math.round(size.x)),
-    height: Math.max(1, Math.round(size.y)),
-  };
+function ensureOverlays(bounds) {
+  overlayA = L.imageOverlay("", bounds, {
+    opacity: OVERLAY_OPACITY,
+    interactive: false,
+    attribution: ATTRIBUTION,
+  }).addTo(map);
+  overlayB = L.imageOverlay("", bounds, {
+    opacity: 0,
+    interactive: false,
+  }).addTo(map);
+  activeOverlay = overlayA;
+  standbyOverlay = overlayB;
 }
 
-async function fetchFrameBlob(view, date) {
-  const iso = date.toISOString();
-  const url = buildWmsImageUrl(view.bbox, view.width, view.height, iso);
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const blob = await res.blob();
-  return URL.createObjectURL(blob);
+function setOverlayImage(overlay, url) {
+  return withTimeout(
+    new Promise((resolve) => {
+      overlay.once("load", resolve);
+      overlay.once("error", resolve);
+      overlay.setUrl(url);
+    }),
+    3000
+  );
 }
 
-async function preloadFrames() {
-  const myToken = ++preloadToken;
+async function renderFrame(index) {
+  currentIndex = index;
+  const frame = frames[index];
+  if (!frame) return;
+  sliderEl.value = String(index);
+  timestampEl.textContent = formatLocal(new Date(frame.time)) + " Uhr";
+
+  if (!standbyOverlay) return;
+  await setOverlayImage(standbyOverlay, frameUrl(frame));
+  standbyOverlay.setOpacity(OVERLAY_OPACITY);
+  activeOverlay.setOpacity(0);
+  const tmp = activeOverlay;
+  activeOverlay = standbyOverlay;
+  standbyOverlay = tmp;
+}
+
+async function refreshFrames() {
+  const myToken = ++manifestToken;
+  let manifest;
+  try {
+    const res = await fetch(MANIFEST_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    manifest = await res.json();
+  } catch (e) {
+    flashStatus("Radar-Daten gerade nicht erreichbar", 3000);
+    return;
+  }
+  if (myToken !== manifestToken) return;
+
+  if (!overlayA) {
+    const bounds = L.latLngBounds(
+      [manifest.bbox.south, manifest.bbox.west],
+      [manifest.bbox.north, manifest.bbox.east]
+    );
+    ensureOverlays(bounds);
+  }
+
+  const wasAtNewest = frames.length === 0 || currentIndex >= frames.length - 1;
+  frames = manifest.frames;
+  sliderEl.max = String(frames.length - 1);
+
   stopPlaying();
   playBtn.disabled = true;
   showStatus(`Lade Radardaten… 0/${frames.length}`);
 
-  const view = currentViewSnapshot();
-  const newCache = new Map();
-  const queue = frames.map((d) => d);
   let loaded = 0;
-
-  async function worker() {
-    while (queue.length) {
-      const date = queue.shift();
-      try {
-        const objectUrl = await fetchFrameBlob(view, date);
-        if (myToken !== preloadToken) {
-          URL.revokeObjectURL(objectUrl);
-          return;
-        }
-        newCache.set(date.toISOString(), objectUrl);
-      } catch (e) {
-        // einzelner Frame fehlt einfach - Loop macht ohne ihn weiter
-      }
-      loaded++;
-      if (myToken === preloadToken) {
-        showStatus(`Lade Radardaten… ${loaded}/${frames.length}`);
-      }
-    }
-  }
-
   await Promise.all(
-    Array.from({ length: PRELOAD_CONCURRENCY }, () => worker())
+    frames.map(async (frame) => {
+      await withTimeout(primeLoad(frameUrl(frame)), 8000);
+      loaded++;
+      if (myToken === manifestToken) showStatus(`Lade Radardaten… ${loaded}/${frames.length}`);
+    })
   );
-
-  if (myToken !== preloadToken) {
-    // ein neuerer Preload-Lauf hat diesen ueberholt (z.B. Kartenbewegung) - verwerfen
-    for (const url of newCache.values()) URL.revokeObjectURL(url);
-    return;
-  }
-
-  for (const url of frameCache.values()) URL.revokeObjectURL(url);
-  frameCache = newCache;
-
-  if (!radarOverlay) {
-    radarOverlay = L.imageOverlay("", view.latLngBounds, {
-      opacity: 0.75,
-      interactive: false,
-      attribution: "Radardaten: Deutscher Wetterdienst (Open Data)",
-    }).addTo(map);
-  } else {
-    radarOverlay.setBounds(view.latLngBounds);
-  }
+  if (myToken !== manifestToken) return;
 
   hideStatus();
   playBtn.disabled = false;
-  renderFrame(currentIndex);
-}
-
-function renderFrame(index) {
-  currentIndex = index;
-  const date = frames[index];
-  const url = frameCache.get(date.toISOString());
-  if (url && radarOverlay) radarOverlay.setUrl(url);
-  sliderEl.value = String(index);
-  timestampEl.textContent = formatLocal(date) + " Uhr";
+  await renderFrame(wasAtNewest ? frames.length - 1 : Math.min(currentIndex, frames.length - 1));
 }
 
 function stopPlaying() {
   isPlaying = false;
   playBtn.textContent = "▶";
-  if (playTimer) {
-    clearInterval(playTimer);
-    playTimer = null;
-  }
+  playLoopToken = null;
 }
 
 function startPlaying() {
   isPlaying = true;
   playBtn.textContent = "❚❚";
-  playTimer = setInterval(() => {
-    renderFrame((currentIndex + 1) % frames.length);
-  }, PLAY_INTERVAL_MS);
+  const myLoopToken = {};
+  playLoopToken = myLoopToken;
+
+  (async function loop() {
+    while (playLoopToken === myLoopToken) {
+      await wait(PLAY_INTERVAL_MS);
+      if (playLoopToken !== myLoopToken) break;
+      await renderFrame((currentIndex + 1) % frames.length);
+    }
+  })();
 }
 
 playBtn.addEventListener("click", () => {
@@ -212,24 +222,8 @@ sliderEl.addEventListener("input", () => {
   renderFrame(Number(sliderEl.value));
 });
 
-let moveDebounceTimer = null;
-map.on("moveend zoomend", () => {
-  clearTimeout(moveDebounceTimer);
-  moveDebounceTimer = setTimeout(preloadFrames, MOVE_DEBOUNCE_MS);
-});
-
-preloadFrames();
-
-// Alle 5 Minuten neue Frame-Liste + Bilder nachziehen, damit der Loop aktuell bleibt.
-setInterval(() => {
-  const wasPlaying = isPlaying;
-  frames = buildFrameTimes();
-  sliderEl.max = String(frames.length - 1);
-  currentIndex = frames.length - 1;
-  preloadFrames().then(() => {
-    if (wasPlaying) startPlaying();
-  });
-}, 5 * 60 * 1000);
+refreshFrames();
+setInterval(refreshFrames, MANIFEST_POLL_MS);
 
 if ("geolocation" in navigator) {
   navigator.geolocation.getCurrentPosition(
