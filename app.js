@@ -26,6 +26,12 @@ const MANIFEST_POLL_MS = 90 * 1000; // die meisten Frames kommen dank
 const OVERLAY_OPACITY = 0.75;
 const ATTRIBUTION = "Radardaten: Deutscher Wetterdienst (Open Data)";
 
+const TEMPERATURE_MANIFEST_URL = "data/temperature/manifest.json";
+// MOSMIX (die Datenquelle) aktualisiert eh nur alle 6h - hier oefter
+// nachzufragen wuerde nichts bringen. Normales HTTP-Caching (kein
+// no-store) reicht, da ein paar Minuten Verzoegerung nicht auffallen.
+const TEMPERATURE_POLL_MS = 10 * 60 * 1000;
+
 const DEFAULT_CENTER = [52.52, 13.405]; // Berlin, Fallback ohne Geolocation
 const DEFAULT_ZOOM = 8;
 
@@ -236,6 +242,63 @@ sliderEl.addEventListener("input", () => {
 
 refreshFrames();
 setInterval(refreshFrames, MANIFEST_POLL_MS);
+
+// Temperatur-Zahlen fuer ein paar grosse Staedte, gleichzeitig mit dem
+// Regenradar sichtbar. Fixe Staedteliste statt dynamischer Standort-
+// Erkennung (siehe scripts/fetch_temperature.py) - reicht fuer den
+// deutschlandweiten Kartenausschnitt.
+let temperatureMarkers = [];
+
+// Waehlt aus der stuendlichen Vorhersage-Reihe den Wert, der der
+// tatsaechlichen aktuellen Uhrzeit am naechsten liegt - so zeigt die Zahl
+// immer den passenden Stundenwert, auch zwischen den 6h-Datenupdates.
+function closestSeriesEntry(series) {
+  const now = Date.now();
+  let best = null;
+  let bestDiff = Infinity;
+  for (const entry of series) {
+    if (entry.tempC == null) continue;
+    const diff = Math.abs(new Date(entry.time).getTime() - now);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = entry;
+    }
+  }
+  return best;
+}
+
+function renderTemperatureLabels(cities) {
+  temperatureMarkers.forEach((m) => map.removeLayer(m));
+  temperatureMarkers = [];
+
+  for (const city of cities) {
+    const entry = closestSeriesEntry(city.series);
+    if (!entry) continue;
+    const icon = L.divIcon({
+      className: "temp-label",
+      html: `${Math.round(entry.tempC)}°`,
+      iconSize: [0, 0],
+      iconAnchor: [-8, -8], // Zahl etwas versetzt neben dem Stadtpunkt
+    });
+    const marker = L.marker([city.lat, city.lon], { icon, interactive: false }).addTo(map);
+    temperatureMarkers.push(marker);
+  }
+}
+
+async function refreshTemperature() {
+  try {
+    const res = await fetch(TEMPERATURE_MANIFEST_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const manifest = await res.json();
+    renderTemperatureLabels(manifest.cities);
+  } catch (e) {
+    // Stumm scheitern - Temperatur-Zahlen sind ein Zusatz, kein Blocker
+    // fuer den Regenradar-Grund-Use-Case.
+  }
+}
+
+refreshTemperature();
+setInterval(refreshTemperature, TEMPERATURE_POLL_MS);
 
 if ("geolocation" in navigator) {
   navigator.geolocation.getCurrentPosition(

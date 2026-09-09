@@ -30,6 +30,12 @@ Auf dem echten GitHub-Pages-Host (HTTPS) registriert sich der Service Worker sau
 - **Wann wieder relevant:** Falls beim Reinzoomen auf eine kleine Region die Pixeligkeit störend auffällt.
 - **Implementierungs-Skizze:** `IMAGE_WIDTH`/`IMAGE_HEIGHT` in [scripts/fetch_radar.py](scripts/fetch_radar.py) erhöhen (mehr Aufloesung = groessere PNGs = etwas laengere Action-Laufzeit, aber egal da im Hintergrund).
 
+## Wolken-Layer (Satellitenbild)
+- **Was:** Wolken wie bei WetterOnline als animierten Layer über der Karte anzeigen.
+- **Warum zurückgestellt:** DWD-WMS bietet dafür nur Satellitenbilder (`Satellite_meteosat_1km_euat_rgb_day_hrv_and_night_ir108_3h`), die nur alle 3 Stunden aktualisiert werden (Opendata-Freigabetakt). Ein Loop daraus wäre ruckelig (8 Standbilder/Tag), nicht das flüssige "Wolken ziehen"-Bild wie beim Regenradar. User hat sich stattdessen für Sonnenschein-Vorhersage über MOSMIX entschieden (siehe Temperatur/Sonnenschein-Feature).
+- **Wann wieder relevant:** Falls trotz des ruckeligen Looks Interesse besteht, oder eine bessere/schnellere Satellitenquelle gefunden wird.
+- **Implementierungs-Skizze:** Analog zu `fetch_radar.py` einen Layer-Toggle mit den 3h-Satellitenframes bauen; alternativ MOSMIX-Bewölkungsgrad (`N`/`Neff`/`Nl`/`Nm`/`Nh`, im selben Datensatz wie Temperatur/Sonnenschein vorhanden) als numerische Alternative statt Kartenlayer.
+
 ## Weltweite Abdeckung (aktuell nicht möglich)
 - **Was:** User-Frage, ob auch außerhalb Deutschlands Radardaten gezeigt werden können.
 - **Warum nicht möglich:** Der DWD betreibt seine Wetterradare nur in/um Deutschland — das ist eine Datenverfügbarkeits-Grenze, keine Speicher- oder Auflösungsfrage. Für weltweite Abdeckung bräuchte es eine andere Datenquelle.
