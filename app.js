@@ -47,8 +47,8 @@ const DEFAULT_CENTER = [52.52, 13.405]; // Berlin, Fallback ohne Geolocation
 const DEFAULT_ZOOM = 8;
 
 const statusEl = document.getElementById("status");
-const timestampEl = document.getElementById("timestamp");
 const sliderEl = document.getElementById("slider");
+const sliderTimeBubble = document.getElementById("sliderTimeBubble");
 const playBtn = document.getElementById("playBtn");
 const forecastStrip = document.getElementById("forecastStrip");
 const forecastLocationName = document.getElementById("forecastLocationName");
@@ -167,13 +167,50 @@ function setOverlayImage(overlay, url) {
   );
 }
 
+// Zeit-Sprechblase folgt dem Slider-Thumb, statt einer kleinen, leicht zu
+// uebersehenden Anzeige oben rechts im Header - direkt am Bedienelement.
+// Farbe signalisiert Ist- (Akzentblau) vs. Prognose-Daten (Grau), zusaetzlich
+// zum Text-Suffix "· Prognose".
+function updateSliderBubble(text, isForecast) {
+  sliderTimeBubble.textContent = text;
+  sliderTimeBubble.classList.toggle("forecast", !!isForecast);
+  positionSliderBubble();
+}
+
+function positionSliderBubble() {
+  const min = Number(sliderEl.min);
+  const max = Number(sliderEl.max);
+  const val = Number(sliderEl.value);
+  const ratio = max > min ? (val - min) / (max - min) : 0;
+  const thumbSize = 16; // Deckt sich mit der Thumb-Groesse in style.css
+  const x = ratio * (sliderEl.clientWidth - thumbSize) + thumbSize / 2;
+  sliderTimeBubble.style.left = `${x}px`;
+}
+
+window.addEventListener("resize", positionSliderBubble);
+
+// Faerbt den Track bis zur "Jetzt"-Position (nowIndex) in Akzentblau, danach
+// in Grau ein - macht den Ist-/Prognose-Anteil auf einen Blick sichtbar,
+// auch ohne den Slider zu bewegen. RainViewer hat keine Prognose, Track
+// bleibt dort komplett blau.
+function updateSliderTrackColor() {
+  if (activeRadarSource === "rainviewer" || frames.length === 0) {
+    sliderEl.style.background = "var(--accent)";
+    return;
+  }
+  const pct = frames.length > 1 ? (nowIndex / (frames.length - 1)) * 100 : 100;
+  sliderEl.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, var(--muted) ${pct}%, var(--muted) 100%)`;
+}
+
 async function renderFrame(index) {
   currentIndex = index;
   const frame = frames[index];
   if (!frame) return;
   sliderEl.value = String(index);
-  timestampEl.textContent =
-    formatLocal(new Date(frame.time)) + " Uhr" + (frame.isForecast ? " · Prognose" : "");
+  updateSliderBubble(
+    formatLocal(new Date(frame.time)) + " Uhr" + (frame.isForecast ? " · Prognose" : ""),
+    frame.isForecast
+  );
   updateTemperatureLabelsForTime(new Date(frame.time).getTime());
 
   if (!standbyOverlay) return;
@@ -214,6 +251,7 @@ async function refreshFrames() {
   frames = manifest.frames;
   nowIndex = manifest.nowIndex;
   sliderEl.max = String(frames.length - 1);
+  updateSliderTrackColor();
 
   stopPlaying();
   playBtn.disabled = true;
@@ -288,7 +326,7 @@ function renderRainviewerFrame(index) {
   if (!frame) return;
   rainviewerIndex = index;
   sliderEl.value = String(index);
-  timestampEl.textContent = formatLocal(new Date(frame.time * 1000)) + " Uhr · RainViewer";
+  updateSliderBubble(formatLocal(new Date(frame.time * 1000)) + " Uhr · RainViewer", false);
   ensureRainviewerLayer().setUrl(`${rainviewerHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`);
 }
 
@@ -319,6 +357,7 @@ function switchToRainviewer() {
   if (standbyOverlay) standbyOverlay.setOpacity(0);
   ensureRainviewerLayer().addTo(map);
   sliderEl.max = String(Math.max(0, rainviewerFrames.length - 1));
+  updateSliderTrackColor();
   if (rainviewerFrames.length) renderRainviewerFrame(rainviewerFrames.length - 1);
 }
 
@@ -330,6 +369,7 @@ function switchToDwd() {
   if (rainviewerLayer) map.removeLayer(rainviewerLayer);
   if (activeOverlay) activeOverlay.setOpacity(OVERLAY_OPACITY);
   sliderEl.max = String(frames.length - 1);
+  updateSliderTrackColor();
   renderFrame(currentIndex);
 }
 

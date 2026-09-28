@@ -19,7 +19,6 @@
 <div id="app">
   <header>
     <h1>Regenradar</h1>
-    <span id="timestamp">–</span>
   </header>
 
   <div id="map">
@@ -30,7 +29,10 @@
 
   <footer>
     <button id="playBtn" class="icon-btn" aria-label="Play/Pause">▶</button>
-    <input id="slider" type="range" min="0" max="0" value="0" step="1" />
+    <div class="slider-wrap">
+      <div id="sliderTimeBubble" class="slider-time-bubble"></div>
+      <input id="slider" type="range" min="0" max="0" value="0" step="1" />
+    </div>
   </footer>
 
   <div id="forecastSheet" class="forecast-panel">
