@@ -27,6 +27,11 @@ Statische Seite (`index.html` / `app.js` / `style.css`) mit Leaflet-Karte auf OS
 - Komplett client-seitig, keine eigene Vorback-Pipeline — RainViewer liefert fertige Kacheln direkt (`api.rainviewer.com`).
 - Gedacht als Ausweichmöglichkeit für die DWD-Netzlücken (Punkt 1), nicht als Ersatz — RainViewer hat aktuell keine Nowcast-Frames in der kostenlosen API.
 
+## UI-Details
+
+- **Karten-Zentrierung beim Start:** Leaflet misst die Container-Größe einmalig bei `L.map()`-Erzeugung. Unter iOS setzt sich die Höhe per CSS-Flexbox + `100dvh` aber erst *nach* diesem Zeitpunkt final — ohne Fix blieb die gecachte, zu kleine Größe stehen und `setView()` zentrierte den Standort zu weit unten. Fix: `map.invalidateSize()` einmal nach dem `load`-Event (Tile-Layer-Setup) und ein zweites Mal direkt vor `setView()` im Geolocation-Erfolgsfall.
+- **Zeitanzeige am Slider:** Statt eines fixen Timestamps oben rechts zeigt eine schwebende Sprechblase direkt über dem Slider-Thumb die Uhrzeit des aktuell angezeigten Frames (`updateSliderBubble()`/`positionSliderBubble()` in [app.js](app.js)). Farbcodierung über bestehende Design-Tokens statt neuer Farben: `var(--accent)` (Ist-Wert) vs. `var(--muted)` (Prognose), zusätzlich ein zweifarbiger Gradient auf dem Slider-Track selbst (`updateSliderTrackColor()`). Die Bubble-Position wird bei jedem Frame-Wechsel und bei `resize` neu berechnet und in Viewport-Koordinaten an beide Bildschirmränder geklemmt (`edgeMargin` 6px), statt bei minimalem/maximalem Slider-Wert über den Rand hinauszulaufen.
+
 ## Update-Pipeline
 
 Zwei GitHub-Actions-Workflows: [.github/workflows/update-radar.yml](.github/workflows/update-radar.yml) (Radar) und [.github/workflows/update-temperature.yml](.github/workflows/update-temperature.yml) (Temperatur).
