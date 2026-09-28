@@ -184,7 +184,19 @@ function positionSliderBubble() {
   const ratio = max > min ? (val - min) / (max - min) : 0;
   const thumbSize = 16; // Deckt sich mit der Thumb-Groesse in style.css
   const x = ratio * (sliderEl.clientWidth - thumbSize) + thumbSize / 2;
-  sliderTimeBubble.style.left = `${x}px`;
+
+  // An den Bildschirmraendern (Slider ganz links/rechts) an der
+  // Viewport-Kante andocken statt dahinter zu verschwinden - die Bubble
+  // ist mittig auf x zentriert (transform: translateX(-50%)), deshalb
+  // hier in Viewport-Koordinaten klemmen statt in den lokalen wrap-x.
+  const wrapRect = sliderTimeBubble.parentElement.getBoundingClientRect();
+  const halfBubble = sliderTimeBubble.offsetWidth / 2;
+  const edgeMargin = 6;
+  let centerX = wrapRect.left + x;
+  centerX = Math.max(halfBubble + edgeMargin, centerX);
+  centerX = Math.min(window.innerWidth - halfBubble - edgeMargin, centerX);
+
+  sliderTimeBubble.style.left = `${centerX - wrapRect.left}px`;
 }
 
 window.addEventListener("resize", positionSliderBubble);
@@ -208,7 +220,7 @@ async function renderFrame(index) {
   if (!frame) return;
   sliderEl.value = String(index);
   updateSliderBubble(
-    formatLocal(new Date(frame.time)) + " Uhr" + (frame.isForecast ? " · Prognose" : ""),
+    formatLocal(new Date(frame.time)) + (frame.isForecast ? " · Prognose" : ""),
     frame.isForecast
   );
   updateTemperatureLabelsForTime(new Date(frame.time).getTime());
@@ -326,7 +338,7 @@ function renderRainviewerFrame(index) {
   if (!frame) return;
   rainviewerIndex = index;
   sliderEl.value = String(index);
-  updateSliderBubble(formatLocal(new Date(frame.time * 1000)) + " Uhr · RainViewer", false);
+  updateSliderBubble(formatLocal(new Date(frame.time * 1000)) + " · RainViewer", false);
   ensureRainviewerLayer().setUrl(`${rainviewerHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`);
 }
 
