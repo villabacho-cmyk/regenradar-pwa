@@ -202,8 +202,54 @@ button.icon-btn:disabled {
   display: flex;
   overflow-x: auto;
   gap: 6px;
-  padding: 14px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 14px 12px 8px;
   -webkit-overflow-scrolling: touch;
+}
+
+.forecast-daily-strip {
+  display: flex;
+  overflow-x: auto;
+  gap: 6px;
+  padding: 8px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-overflow-scrolling: touch;
+}
+
+.forecast-day {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 54px;
+}
+
+.forecast-day .fd-weekday {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.forecast-day .fd-icon {
+  font-size: 20px;
+}
+
+.forecast-day .fd-temp {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-day .fd-max {
+  font-weight: 600;
+}
+
+.forecast-day .fd-min {
+  color: var(--muted);
+}
+
+.forecast-day .fd-rain {
+  font-size: 11px;
+  color: var(--accent);
 }
 
 .forecast-hour {

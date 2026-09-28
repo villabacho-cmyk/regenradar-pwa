@@ -6,8 +6,8 @@ Actions alle 6 Stunden ausgefuehrt - siehe
 .github/workflows/update-temperature.yml (MOSMIX_L selbst wird nur alle
 6h neu veroeffentlicht, haeufigeres Holen waere sinnlos).
 
-Warum alle 281 statt nur einer kleinen Auswahl: die "48h-Vorhersage fuer
-meinen Standort"-Funktion im Client sucht sich die naechstgelegene
+Warum alle 281 statt nur einer kleinen Auswahl: die Vorhersage-Leiste fuer
+meinen Standort im Client sucht sich die naechstgelegene
 Station zu den echten GPS-Koordinaten. Mit nur ~40 Stationen kann das
 bis zu 65-100km daneben liegen - mit allen 281 ist der Fehler minimal.
 Die Karte selbst zeigt trotzdem nur eine kuratierte Teilmenge als Icons
@@ -333,7 +333,9 @@ MOSMIX_URL_TEMPLATE = (
     "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/"
     "single_stations/{id}/kml/MOSMIX_L_LATEST_{id}.kmz"
 )
-SERIES_HOURS = 48  # Kurve/Anzeige braucht keine vollen 10 Tage MOSMIX liefert
+SERIES_HOURS = 168  # 7 Tage stuendlich, fuer Stunden- + Tages-Kacheln im
+# Client - MOSMIX liefert nativ bis zu 240h (empirisch verifiziert: TTT/N/R101
+# sind bis zum letzten Zeitschritt durchgehend belegt, kein Ausduennen).
 MAX_WORKERS = 12  # MOSMIX-Dateien sind statisch (kein Server-Rendering) -
 # parallele Abfrage ist unproblematisch und haelt die Laufzeit niedrig.
 

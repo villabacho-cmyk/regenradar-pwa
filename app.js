@@ -31,6 +31,10 @@ const TEMPERATURE_MANIFEST_URL = "data/temperature/manifest.json";
 // nachzufragen wuerde nichts bringen. Normales HTTP-Caching (kein
 // no-store) reicht, da ein paar Minuten Verzoegerung nicht auffallen.
 const TEMPERATURE_POLL_MS = 10 * 60 * 1000;
+// Stunden-Leiste zeigt weiterhin nur den Nahbereich - die vollen 7 Tage aus
+// dem Manifest sind nur fuer die Tages-Kacheln gedacht, nicht fuer 168
+// einzelne Stunden-Karten zum Durchscrollen.
+const HOURLY_STRIP_HOURS = 48;
 
 // RainViewer: Ergaenzung fuer die Luecken im DWD-Netz (siehe Chat) - rein
 // client-seitig, keine eigene Vorback-Pipeline/Cron noetig. Liefert nur
@@ -49,6 +53,7 @@ const playBtn = document.getElementById("playBtn");
 const forecastStrip = document.getElementById("forecastStrip");
 const forecastLocationName = document.getElementById("forecastLocationName");
 const forecastDateLabel = document.getElementById("forecastDateLabel");
+const forecastDailyStrip = document.getElementById("forecastDailyStrip");
 const sunTimesEl = document.getElementById("sunTimes");
 const radarSourceToggle = document.getElementById("radarSourceToggle");
 
@@ -533,9 +538,73 @@ function renderSunTimes(date) {
     : "";
 }
 
+// Gruppiert die stuendliche Serie nach lokalem Kalendertag - fuer die
+// Tages-Kacheln unter der Stunden-Leiste. "Heute" bekommt bewusst auch eine
+// Kachel, auch wenn nur noch die restlichen Stunden des Tages drinstecken
+// (MOSMIX ist reine Vorhersage, vergangene Stunden von heute liefert es
+// nicht mit) - schadet nicht und zeigt wenigstens den Rest-Tagesbereich.
+function aggregateDailyForecast(series) {
+  const days = new Map();
+  for (const entry of series) {
+    const date = new Date(entry.time);
+    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    if (!days.has(key)) days.set(key, []);
+    days.get(key).push({ ...entry, date });
+  }
+
+  const result = [];
+  for (const entries of days.values()) {
+    const temps = entries.map((e) => e.tempC).filter((t) => t != null);
+    if (temps.length === 0) continue;
+    const rains = entries.map((e) => e.rainPct).filter((r) => r != null);
+
+    // Reprasentatives Wolken-Icon fuer den Tag: der Eintrag am naechsten an
+    // 14 Uhr lokal - sonst koennte z.B. eine einzelne Wolke um 3 Uhr
+    // nachts das Icon genauso stark praegen wie der eigentlich relevante
+    // Nachmittag.
+    let repEntry = entries[0];
+    let bestDiff = Infinity;
+    for (const e of entries) {
+      const diff = Math.abs(e.date.getHours() - 14);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        repEntry = e;
+      }
+    }
+
+    result.push({
+      date: entries[0].date,
+      minTemp: Math.min(...temps),
+      maxTemp: Math.max(...temps),
+      // Tagesmaximum statt Mittelwert: ein einzelner kraeftiger Schauer
+      // soll nicht von ruhigen Stunden "weggemittelt" werden - fuer die
+      // Planung zaehlt "kann es heute regnen", nicht der Tagesdurchschnitt.
+      maxRain: rains.length ? Math.max(...rains) : null,
+      cloudPct: repEntry.cloudPct,
+    });
+  }
+  return result;
+}
+
+function renderDailyForecast(station) {
+  const days = aggregateDailyForecast(station.series).slice(0, 7);
+  forecastDailyStrip.innerHTML = days
+    .map(
+      (d) => `
+      <div class="forecast-day">
+        <span class="fd-weekday">${d.date.toLocaleDateString("de-DE", { weekday: "short" })}</span>
+        <span class="fd-icon">${cloudIcon(d.cloudPct)}</span>
+        <span class="fd-temp"><span class="fd-max">${Math.round(d.maxTemp)}°</span> <span class="fd-min">${Math.round(d.minTemp)}°</span></span>
+        <span class="fd-rain">${d.maxRain != null ? d.maxRain + "%" : "–"}</span>
+      </div>`
+    )
+    .join("");
+}
+
 function renderForecastStrip() {
   if (!userLatLng || allStations.length === 0) {
     forecastStrip.innerHTML = `<div class="forecast-empty">Standort/Daten noch nicht verfügbar</div>`;
+    forecastDailyStrip.innerHTML = "";
     forecastDateLabel.textContent = "";
     return;
   }
@@ -543,9 +612,12 @@ function renderForecastStrip() {
   forecastLocationName.textContent = station.name;
 
   const cutoff = Date.now() - 30 * 60 * 1000; // kleiner Puffer, damit die laufende Stunde nicht rausfaellt
-  const upcoming = station.series.filter(
-    (entry) => entry.tempC != null && new Date(entry.time).getTime() >= cutoff
-  );
+  const hourlyEnd = Date.now() + HOURLY_STRIP_HOURS * 60 * 60 * 1000;
+  const upcoming = station.series.filter((entry) => {
+    if (entry.tempC == null) return false;
+    const t = new Date(entry.time).getTime();
+    return t >= cutoff && t < hourlyEnd;
+  });
   forecastStrip.innerHTML = upcoming
     .map((entry) => {
       const date = new Date(entry.time);
@@ -559,6 +631,7 @@ function renderForecastStrip() {
     })
     .join("");
   forecastStrip.scrollLeft = 0;
+  renderDailyForecast(station);
   updateForecastDateIndicator();
 }
 
