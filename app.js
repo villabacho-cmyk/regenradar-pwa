@@ -120,6 +120,13 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap-Mitwirkende",
 }).addTo(map);
 
+// Leaflet misst die Container-Groesse einmal bei L.map(), noch bevor
+// Flexbox-Layout und iOS' dynamische Viewport-Hoehe (100dvh) sich
+// eingependelt haben - dadurch war die #map-Hoehe zu diesem Zeitpunkt
+// oft zu gross geschaetzt, was setView() spaeter systematisch zu weit
+// unten zentrieren liess (sichtbar v.a. auf dem iPhone).
+window.addEventListener("load", () => map.invalidateSize());
+
 let frames = [];
 let currentIndex = 0;
 let nowIndex = 0; // Index des letzten Nicht-Vorhersage-Frames ("jetzt")
@@ -661,6 +668,7 @@ if ("geolocation" in navigator) {
       userLatLng = latlng;
       renderSunTimes(new Date());
       renderForecastStrip();
+      map.invalidateSize();
       map.setView(latlng, DEFAULT_ZOOM);
       // Kreis statt Leaflet-Standardmarker: kein Icon-Asset noetig (der
       // Standard-Marker bricht oft, wenn Leaflet nur per CDN-Script
